@@ -2,9 +2,11 @@
 using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using Newtonsoft.Json;
 using VkNet;
 
 namespace Irc2Vk
@@ -18,27 +20,49 @@ namespace Irc2Vk
         VkBot _vkBot;
         private UsersActivitiesManager _userActivitiesManager;
 
+        private T LoadConfig<T>(string name) where T: struct
+        {
+            var path = Path.Combine(Directory.GetCurrentDirectory(),"configs", $"{name}.json");
+            if (File.Exists(path))
+                return JsonConvert.DeserializeObject<T>(File.ReadAllText(path));
+            return new T();
+
+        }
+
+        private void SaveConfig<T>(string name, T config) where T : struct
+        {
+            var dir = Path.Combine(Directory.GetCurrentDirectory(), "configs");
+            if(!Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, $"{name}.json");
+            if (!File.Exists(path))
+                File.Create(path);
+            File.WriteAllText(path, JsonConvert.SerializeObject(config, Formatting.Indented));
+
+        }
+
         private void OnStartup(object sender, StartupEventArgs e)
         {
-            ulong appID = 0;                                        // ID приложения
-            string email = "0";                         // email или телефон
-            string pass = "0";                                 // пароль для авторизации
+            
             var settings = VkNet.Enums.Filters.Settings.Messages | VkNet.Enums.Filters.Settings.Friends;       // Приложение имеет доступ к друзьям
 
             var vk = new VkApi(new StandardCaptchaSolver());
+
+            var vkParams = LoadConfig<VkBotConfig>("vkbot");
             try
             {
                 vk.Authorize(new ApiAuthParams
                 {
-                    ApplicationId = appID,
-                    Login = email,
-                    Password = pass,
+                    ApplicationId = vkParams.AppId,
+                    Login = vkParams.Email,
+                    Password = vkParams.Pass,
                     Settings = settings
                     
                 });
                 _userActivitiesManager = new UsersActivitiesManager(new Dictionary<long, DateTime>(), new TimeSpan(6, 0, 0));
-                
-                _ircListener = new IrcListener("0", "0", "0");
+
+                var ircParams = LoadConfig<IrcConfig>("irc");
+                _ircListener = new IrcListener(ircParams.Host, ircParams.Channel);
                 _vkBot = new VkBot(vk, _ircListener);
                 _ircListener.UserBanned += _userActivitiesManager.RemoveUserActivity;
                 _vkBot.RecivedMessageFromUid += _userActivitiesManager.RefreshUserActivity;

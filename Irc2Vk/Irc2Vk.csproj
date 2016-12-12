@@ -74,6 +74,7 @@
     <Compile Include="CaptchaDialog.xaml.cs">
       <DependentUpon>CaptchaDialog.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Configs.cs" />
     <Compile Include="IrcBot.cs" />
     <Compile Include="IrcListener.cs" />
     <Compile Include="Message.cs" />

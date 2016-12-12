@@ -34,7 +34,7 @@ namespace Irc2Vk
             MessagesHistoryUpdated?.Invoke(uids, msgs);
         }
 
-        public IrcListener(string hostname, string channel, string listenerNick, int port = 6667)
+        public IrcListener(string hostname, string channel, int port = 6667)
         {
             _hostname = hostname;
             _channel = channel;
