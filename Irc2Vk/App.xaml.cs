@@ -25,7 +25,7 @@ namespace Irc2Vk
             string pass = "0";                                 // пароль для авторизации
             var settings = VkNet.Enums.Filters.Settings.Messages | VkNet.Enums.Filters.Settings.Friends;       // Приложение имеет доступ к друзьям
 
-            var vk = new VkApi();
+            var vk = new VkApi(new StandardCaptchaSolver());
             try
             {
                 vk.Authorize(new ApiAuthParams

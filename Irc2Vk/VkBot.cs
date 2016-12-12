@@ -69,6 +69,8 @@ namespace Irc2Vk
                     }
                 } catch (VkNet.Exception.VkApiException exc)
                 {}
+                catch (NullReferenceException exc)
+                { }
                 await Task.Delay(new TimeSpan(0, 0, 5));
             }
         }
@@ -117,7 +119,7 @@ namespace Irc2Vk
                         var param = ex.ParamName;
                     }
                 }
-                await Task.Delay(new TimeSpan(0, 0, 1));
+                await Task.Delay(new TimeSpan(700));
             }
         }
 
