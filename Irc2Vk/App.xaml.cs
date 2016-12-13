@@ -18,7 +18,6 @@ namespace Irc2Vk
     {
         IrcListener _ircListener;
         VkBot _vkBot;
-        private UsersActivitiesManager _userActivitiesManager;
 
         private T LoadConfig<T>(string name) where T: struct
         {
@@ -29,6 +28,18 @@ namespace Irc2Vk
 
         }
 
+        private void CreateConfigIfNotExists<T>(string name) where T : struct
+        {
+            var dir = Path.Combine(Directory.GetCurrentDirectory(), "configs");
+            if (!Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, $"{name}.json");
+            if (File.Exists(path)) return;
+            File.Create(path);
+            File.WriteAllText(path, JsonConvert.SerializeObject(new T(), Formatting.Indented));
+        }
+
+
         private void SaveConfig<T>(string name, T config) where T : struct
         {
             var dir = Path.Combine(Directory.GetCurrentDirectory(), "configs");
@@ -38,17 +49,21 @@ namespace Irc2Vk
             if (!File.Exists(path))
                 File.Create(path);
             File.WriteAllText(path, JsonConvert.SerializeObject(config, Formatting.Indented));
-
         }
 
         private void OnStartup(object sender, StartupEventArgs e)
         {
-            
+            CreateConfigIfNotExists<VkBotConfig>("vkbot");
+            CreateConfigIfNotExists<ClientsConfig> ("clients");
+            CreateConfigIfNotExists<IrcConfig>("irc");
+
             var settings = VkNet.Enums.Filters.Settings.Messages | VkNet.Enums.Filters.Settings.Friends;       // Приложение имеет доступ к друзьям
 
             var vk = new VkApi(new StandardCaptchaSolver());
 
             var vkParams = LoadConfig<VkBotConfig>("vkbot");
+            var clientsParams = LoadConfig<ClientsConfig>("clients");
+            
             try
             {
                 vk.Authorize(new ApiAuthParams
@@ -59,21 +74,21 @@ namespace Irc2Vk
                     Settings = settings
                     
                 });
-                _userActivitiesManager = new UsersActivitiesManager(new Dictionary<long, DateTime>(), new TimeSpan(6, 0, 0));
-
+                
                 var ircParams = LoadConfig<IrcConfig>("irc");
-                _ircListener = new IrcListener(ircParams.Host, ircParams.Channel);
+                _ircListener = new IrcListener(ircParams, clientsParams);
                 _vkBot = new VkBot(vk, _ircListener);
-                _ircListener.UserBanned += _userActivitiesManager.RemoveUserActivity;
-                _vkBot.RecivedMessageFromUid += _userActivitiesManager.RefreshUserActivity;
-                _userActivitiesManager.UserAdded += _ircListener.CreateNewBot;
-                _userActivitiesManager.UserRemoved += _ircListener.RemoveBot;
+
+                _vkBot.Start();
+                _ircListener.Start();
             } catch (VkNet.Exception.VkApiException exc)
             {
                 System.Windows.MessageBox.Show($"Ошибка авторизации: {exc.Message}");
                 App.Current.Shutdown();
             }
         }
+
+
 
         private void Debug(List<long> uids, List<string> messages)
         {

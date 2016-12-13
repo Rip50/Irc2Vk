@@ -79,7 +79,6 @@
     <Compile Include="IrcListener.cs" />
     <Compile Include="Message.cs" />
     <Compile Include="StandardCaptchaSolver.cs" />
-    <Compile Include="UsersActivitiesManager.cs" />
     <Compile Include="VkBot.cs" />
     <Page Include="CaptchaDialog.xaml">
       <SubType>Designer</SubType>

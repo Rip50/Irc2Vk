@@ -10,31 +10,24 @@ namespace Irc2Vk
 {
     class IrcBot
     {
-        public enum State { NicknameRequired, Connected, Banned, Disconnected }
-        private string _nickname = "";
-        public string Nickname
+        public enum State { Connected, Banned, Disconnected }
+        public DateTime LastActivity { get; private set; }
+        private TimeSpan _maxAllowedInactiveInteral = new TimeSpan(1,0,0);
+
+        public event Action<IrcBot> ClientInactive;
+        protected virtual void OnClientInactive(IrcBot obj)
         {
-            get { return _nickname; }
-            set {
-                _nickname = value;
-                _client.ChangeName(_nickname);
-                try
-                {
-                    _client.LogIn(_nickname, _nickname, _nickname);
-                    _client.GotMessage += EnqueMessage;
-                    CurrentState = State.Connected;
-                } catch(Exception)
-                {
-                    CurrentState = State.Disconnected;
-                }
-            }
+            ClientInactive?.Invoke(obj);
         }
+
+        public string Nickname { get; set; } = null;
+
 
         public string GetMessages()
         {
             lock (_messages)
             {
-                var res = string.Join("\n", _messages);
+                var res = string.Join("\n\n", _messages);
                 _messages.Clear();
                 return res;
             }
@@ -53,6 +46,9 @@ namespace Irc2Vk
                 if (e.Sender.Nickname != Nickname)
                     _messages.Add($"{Filter(e.Sender.Nickname)}: {Filter(e.Message)}");
             }
+
+            if (DateTime.Now - LastActivity > _maxAllowedInactiveInteral)
+                OnClientInactive(this);
         }
 
         private NetIrc2.IrcClient _client;
@@ -71,27 +67,43 @@ namespace Irc2Vk
             _hostname = hostname;
             _port = port;
             _messages = new List<string>();
+            LastActivity = DateTime.Now;
 
 
         }
 
         public void Send(string msg)
         {
-            if (CurrentState == State.Connected)
-                _client.Message(_channel, msg);
+            if (CurrentState != State.Connected)
+                return;
+
+            LastActivity = DateTime.Now;
+            _client.Message(_channel, msg);
+
         } 
 
         public void Connect()
         {
             _client = new NetIrc2.IrcClient();
             _client.Connect(_hostname, _port);
-            CurrentState = State.NicknameRequired;
+            if (Nickname == null)
+                return;
+            _client.LogIn(Nickname, Nickname, Nickname);
+            _client.GotMessage += EnqueMessage;
+            CurrentState = State.Connected;
         }
 
         public void Disconnect()
         {
             _client.LogOut("Bye");
+            _client.GotMessage -= EnqueMessage;
             CurrentState = State.Disconnected;
+            lock (_messages)
+            {
+                _messages.Clear();
+            }
         }
+
+
     }
 }

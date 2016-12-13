@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using VkNet.Model.Attachments;
 
 namespace Irc2Vk
 {
@@ -57,11 +58,35 @@ namespace Irc2Vk
                             maxMessagesId = msg.Id.Value;
                             message.UserIds = new List<long>() { msg.UserId.Value};
                             message.Msg = msg.Body;
-                            message.Attachments = new List<string>();
+                            //message.Attachments = new List<string>();
+                            var attachments = new List<string>();
+                            foreach (var at in msg?.Attachments)
+                            {
+                                switch(at.Type.Name)
+                                {
+                                    case "Photo":
+                                        var p = at.Instance as Photo;
+                                        attachments.Add($"[img]{p.Photo1280?.AbsoluteUri}");
+                                        break;
+                                    case "Audio":
+                                        var a = at.Instance as Audio;
+                                        attachments.Add($"[audio]{a.Url.AbsoluteUri}");
+                                        break;
+                                    case "Document":
+                                        var d = at.Instance as Document;
+                                        attachments.Add($"[doc]{d.Url}");
+                                        break;
+                                    case "Link":
+                                        var l = at.Instance as Link;
+                                        attachments.Add($"[link]{l.Url.AbsoluteUri}");
+                                        break;
+                                    default:
+                                        break;
+                                }
+                            }
+                            message.Attachments = attachments;
                             Message? res;
                             lock (_irc)
-                                if (msg.UserId != null)
-                                    OnRecivedMessageFromUid(msg.UserId.Value);
                                 res = _irc.Send(message); 
                             if (res.HasValue)
                                 NewMessages.Enqueue(res.Value);
@@ -119,7 +144,7 @@ namespace Irc2Vk
                         var param = ex.ParamName;
                     }
                 }
-                await Task.Delay(new TimeSpan(700));
+                await Task.Delay(new TimeSpan(1500));
             }
         }
 
@@ -130,10 +155,14 @@ namespace Irc2Vk
             _irc.MessagesHistoryUpdated += SetNewMessages;
             _readThread = new System.Threading.Thread(ReadUserMessagesCycle);
             _sendThread = new System.Threading.Thread(SendMessagesCycle);
-            _sendThread.Start();
-            _readThread.Start();
             NewMessages = new ConcurrentQueue<Message>();
             
+        }
+
+        public void Start()
+        {
+            _sendThread.Start();
+            _readThread.Start();
         }
 
         private void SetNewMessages(IEnumerable<long> ids, IEnumerable<string> messages)

@@ -10,12 +10,5 @@ namespace Irc2Vk
         public string Pass;
     }
 
-    [Serializable]
-    public struct IrcConfig
-    {
-        public string Host;
-        public string Pass;
-        public ulong Port;
-        public string Channel;
-    }
+
 }
