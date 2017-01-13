@@ -4,6 +4,7 @@ using System.Configuration;
 using System.Data;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using Newtonsoft.Json;
@@ -35,8 +36,12 @@ namespace Irc2Vk
                 Directory.CreateDirectory(dir);
             var path = Path.Combine(dir, $"{name}.json");
             if (File.Exists(path)) return;
-            File.Create(path);
-            File.WriteAllText(path, JsonConvert.SerializeObject(new T(), Formatting.Indented));
+            using (var stream = File.Create(path))
+            {
+                var serialized = JsonConvert.SerializeObject(new T(), Formatting.Indented);
+                using (var writer = new StreamWriter(stream)) 
+                    writer.Write(serialized);
+            }
         }
 
 
@@ -53,48 +58,51 @@ namespace Irc2Vk
 
         private void OnStartup(object sender, StartupEventArgs e)
         {
-            CreateConfigIfNotExists<VkBotConfig>("vkbot");
-            CreateConfigIfNotExists<ClientsConfig> ("clients");
-            CreateConfigIfNotExists<IrcConfig>("irc");
-
-            var settings = VkNet.Enums.Filters.Settings.Messages | VkNet.Enums.Filters.Settings.Friends;       // Приложение имеет доступ к друзьям
-
-            var vk = new VkApi(new StandardCaptchaSolver());
-
-            var vkParams = LoadConfig<VkBotConfig>("vkbot");
-            var clientsParams = LoadConfig<ClientsConfig>("clients");
-            
             try
             {
-                vk.Authorize(new ApiAuthParams
-                {
-                    ApplicationId = vkParams.AppId,
-                    Login = vkParams.Email,
-                    Password = vkParams.Pass,
-                    Settings = settings
-                    
-                });
-                
-                var ircParams = LoadConfig<IrcConfig>("irc");
-                _ircListener = new IrcListener(ircParams, clientsParams);
-                _vkBot = new VkBot(vk, _ircListener);
+                CreateConfigIfNotExists<VkBotConfig>("vkbot");
+                CreateConfigIfNotExists<ClientsConfig>("clients");
+                CreateConfigIfNotExists<IrcConfig>("irc");
 
-                _vkBot.Start();
-                _ircListener.Start();
-            } catch (VkNet.Exception.VkApiException exc)
+                var settings = VkNet.Enums.Filters.Settings.Messages | VkNet.Enums.Filters.Settings.Friends;
+                // Приложение имеет доступ к друзьям
+
+                var vk = new VkApi(new StandardCaptchaSolver());
+
+                var vkParams = LoadConfig<VkBotConfig>("vkbot");
+                var clientsParams = LoadConfig<ClientsConfig>("clients");
+
+                try
+                {
+                    vk.Authorize(new ApiAuthParams
+                    {
+                        ApplicationId = vkParams.AppId,
+                        Login = vkParams.Email,
+                        Password = vkParams.Pass,
+                        Settings = settings
+
+                    });
+
+                    var ircParams = LoadConfig<IrcConfig>("irc");
+                    _ircListener = new IrcListener(ircParams, clientsParams);
+                    _vkBot = new VkBot(vk, _ircListener);
+
+                    _vkBot.Start();
+                    _ircListener.Start();
+                }
+                catch (VkNet.Exception.VkApiException exc)
+                {
+                    System.Windows.MessageBox.Show($"Ошибка авторизации: {exc.Message}");
+                    App.Current.Shutdown();
+                }
+            }
+            catch (Exception exc)
             {
-                System.Windows.MessageBox.Show($"Ошибка авторизации: {exc.Message}");
+                System.Windows.MessageBox.Show($"Фатальная ошибка: {exc.Message}");
                 App.Current.Shutdown();
             }
         }
 
-
-
-        private void Debug(List<long> uids, List<string> messages)
-        {
-            var mw = MainWindow as Irc2Vk.MainWindow;
-            if (mw == null) return;
-            mw.Text = string.Join("\n", messages);
-        }
+        
     }
 }

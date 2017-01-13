@@ -19,21 +19,11 @@ namespace Irc2Vk
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
-    public partial class MainWindow : Window, System.ComponentModel.INotifyPropertyChanged
+    public partial class MainWindow : Window
     {
-        private string _text;
-        public string Text { get { return _text; } set { _text = value; OnPropertyChanged("Text"); } }
         public MainWindow()
         {
-            InitializeComponent();
         }
-
-        public event PropertyChangedEventHandler PropertyChanged;
-        private void OnPropertyChanged(string name)
-        {
-            var handler = PropertyChanged;
-            if (handler != null)
-                handler(this, new PropertyChangedEventArgs(name));
-        }
+        
     }
 }
