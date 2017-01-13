@@ -105,9 +105,18 @@ namespace Irc2Vk
             var lastSend = DateTime.Now;
             while (!Stop)
             {
-                Message msg;
-                if (!NewMessages.TryDequeue(out msg) || msg.Msg==null ||msg.Msg.Length == 0)
+                if (NewMessages.IsEmpty)
+                {
+                    TryAccumulateMessages();
                     continue;
+                }
+                //Message msg;
+                var newMsgs = NewMessages.ToArray();
+                NewMessages = new ConcurrentQueue<Message>();
+                var sends = newMsgs.Select(x => $"API.messages.send({{ \"user_id\": {x.UserId},\"message\" : \"{x.Msg}\"}})");
+                var request = $"return [{string.Join(",", sends)}];";
+                //if (!NewMessages.TryDequeue(out msg) || msg.Msg==null ||msg.Msg.Length == 0)
+                //    continue;
                 var succeded = false;
                 while (!succeded)
                 {
@@ -117,12 +126,15 @@ namespace Irc2Vk
                         {
                             var diff = DateTime.Now - lastSend;
                             lastSend = DateTime.Now;
-                            _api.Messages.Send(new VkNet.Model.RequestParams.MessagesSendParams
-                            {
-                                Message = msg.Msg,
-                                UserId = msg.UserId
-                            });
+                            //_api.Messages.Send(new VkNet.Model.RequestParams.MessagesSendParams
+                            //{
+                            //    Message = msg.Msg,
+                            //    UserId = msg.UserId
+                            //});
+                            _api.Execute.Execute(request);
+
                         }
+
                         succeded = true;
                     }
                     catch (VkNet.Exception.VkApiException ex)
@@ -136,6 +148,17 @@ namespace Irc2Vk
                     }
                 }
                 await Task.Delay(TimeSpan.FromSeconds(1.5));
+            }
+        }
+
+        private void TryAccumulateMessages()
+        {
+            lock (_irc)
+            {
+                foreach (var msg in _irc.GetNewMessages())
+                {
+                    NewMessages.Enqueue(msg);
+                }
             }
         }
 

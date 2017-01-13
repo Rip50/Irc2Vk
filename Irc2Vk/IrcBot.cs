@@ -27,7 +27,7 @@ namespace Irc2Vk
         {
             lock (_messages)
             {
-                var res = string.Join("\n\n", _messages);
+                var res = string.Join("\\n\\n", _messages);
                 _messages.Clear();
                 return res;
             }

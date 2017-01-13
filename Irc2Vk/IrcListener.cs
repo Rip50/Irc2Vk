@@ -82,7 +82,7 @@ namespace Irc2Vk
 
         public void Start()
         {
-            _updateTimer.Start();
+            //_updateTimer.Start();
         }
 
         private void Update(object sender, ElapsedEventArgs e)
@@ -189,6 +189,23 @@ namespace Irc2Vk
         
         public void Dispose()
         {
+        }
+
+        public IEnumerable<Message> GetNewMessages()
+        {
+            var newMessages = new List<Message>();
+            foreach (var bot in Bots.Where(kv => kv.Value.CurrentState == IrcBot.State.Connected))
+            {
+                var msgs = bot.Value.GetMessages();
+                if (msgs.Length != 0)
+                    newMessages.Add( new Message() { UserId = bot.Key, Attachments = new List<string>(), Msg = msgs});
+            }
+            lock (MessagesHistory)
+            {
+                newMessages.AddRange(MessagesHistory);
+                MessagesHistory.Clear();
+            }
+            return newMessages;
         }
     }
 }
