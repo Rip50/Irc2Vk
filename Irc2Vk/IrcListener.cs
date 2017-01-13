@@ -44,7 +44,7 @@ namespace Irc2Vk
         
         public IrcConfig Config { get; set; }
 
-        public event Action<IEnumerable<long>, IEnumerable<string>> MessagesHistoryUpdated;
+        public event Action<long, IEnumerable<string>> MessagesHistoryUpdated;
         
         private List<Message> MessagesHistory { get; set; }
         private ConcurrentDictionary<long, IrcBot> Bots { get; set; }
@@ -55,9 +55,9 @@ namespace Irc2Vk
             UserBanned?.Invoke(uid);
         }
 
-        private void OnMessagesHistoryUpdated(IEnumerable<long> uids, IEnumerable<string> msgs  )
+        private void OnMessagesHistoryUpdated(long uid, IEnumerable<string> msgs  )
         {
-            MessagesHistoryUpdated?.Invoke(uids, msgs);
+            MessagesHistoryUpdated?.Invoke(uid, msgs);
         }
 
         public IrcListener(IrcConfig config, ClientsConfig? knownClients = null)
@@ -91,7 +91,7 @@ namespace Irc2Vk
             {
                 var msgs = bot.Value.GetMessages();
                 if(msgs.Length!=0)
-                    OnMessagesHistoryUpdated(new List<long>() {bot.Key}, new List<string>() {msgs} );
+                    OnMessagesHistoryUpdated(bot.Key, new List<string>() {msgs} );
             }
         }
         
@@ -108,7 +108,7 @@ namespace Irc2Vk
             inactive.Value.Disconnect();
             MessagesHistory.Add(new Message()
             {
-                UserIds = new List<long>() { inactive.Key}, 
+                UserId = inactive.Key, 
                 Msg = "Вы были отключены за длительное бездействие"
             });
         }
@@ -127,24 +127,24 @@ namespace Irc2Vk
 
         internal Message? Send(Message message)
         {
-            if (!Bots.Keys.Contains(message.UserIds.First()))
+            if (!Bots.Keys.Contains(message.UserId))
             {
-                CreateNewBot(message.UserIds.First());
+                CreateNewBot(message.UserId);
                 return new Message()
                 {
                     Msg = $"Введите ник для участия в беседе на канале {Config.Channel}",
-                    UserIds = new List<long>() { message.UserIds.First() }
+                    UserId = message.UserId
                 };
             }
 
-            var bot = Bots[message.UserIds.First()];
+            var bot = Bots[message.UserId];
 
             if (bot.Nickname == null)
             {
                 if(!Regex.IsMatch(message.Msg, "[a-zA-Z0-9_]+"))
                     return new Message()
                     {
-                        UserIds = message.UserIds,
+                        UserId = message.UserId,
                         Msg = "В качестве ника разрешено использовать только буквы латинского алфавита, цифры и знак '_'."
                     };
                 bot.Nickname = message.Msg;
@@ -154,18 +154,18 @@ namespace Irc2Vk
                     return new Message()
                     {
                         Msg = $"Добро пожаловать в чат, {bot.Nickname}!",
-                        UserIds = message.UserIds
+                        UserId = message.UserId
                     };
                 }
                 return new Message()
                 {
                     Msg = $"Не удалось подключиться, {bot.Nickname}. Попробуйте позже.",
-                    UserIds = message.UserIds
+                    UserId = message.UserId
                 };
             }
 
             if(bot.CurrentState == IrcBot.State.Banned) {
-                OnUserBanned(message.UserIds.First());
+                OnUserBanned(message.UserId);
             } else
             {
                 bot.Send(message.Msg);
@@ -181,7 +181,7 @@ namespace Irc2Vk
                     return new Message()
                     {
                         Msg = $"Число приложений привысило максимально допустимое. Были отосланы {Config.MaxAttachmentsCount} первых приложений.",
-                        UserIds = message.UserIds
+                        UserId = message.UserId
                     };
             }
             return null;

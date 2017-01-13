@@ -9,7 +9,7 @@ namespace Irc2Vk
 
     struct Message
     {
-        public IEnumerable<long> UserIds;
+        public long UserId;
         public string Msg;
         public IEnumerable<string> Attachments;
     }

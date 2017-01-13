@@ -56,7 +56,7 @@ namespace Irc2Vk
                             if(!msg.UserId.HasValue || msg.Type == VkNet.Enums.MessageType.Sended || !msg.Id.HasValue)
                                 continue;
                             maxMessagesId = msg.Id.Value;
-                            message.UserIds = new List<long>() { msg.UserId.Value};
+                            message.UserId = msg.UserId.Value;
                             message.Msg = msg.Body;
                             //message.Attachments = new List<string>();
                             var attachments = new List<string>();
@@ -102,6 +102,7 @@ namespace Irc2Vk
 
         private async void SendMessagesCycle()
         {
+            var lastSend = DateTime.Now;
             while (!Stop)
             {
                 Message msg;
@@ -112,25 +113,15 @@ namespace Irc2Vk
                 {
                     try
                     {
-                        var @params = new VkNet.Model.RequestParams.MessagesSendParams
-                        {
-                            Message = msg.Msg
-                        };
-                        switch (msg.UserIds.Count())
-                        {
-                            case 1:
-                                @params.UserId = msg.UserIds.First();
-                                break;
-                            case 0:
-                                return;
-                            default:
-                                @params.UserIds = msg.UserIds;
-                                break;
-                        }
-
                         lock (_api)
                         {
-                            _api.Messages.Send(@params);
+                            var diff = DateTime.Now - lastSend;
+                            lastSend = DateTime.Now;
+                            _api.Messages.Send(new VkNet.Model.RequestParams.MessagesSendParams
+                            {
+                                Message = msg.Msg,
+                                UserId = msg.UserId
+                            });
                         }
                         succeded = true;
                     }
@@ -144,7 +135,7 @@ namespace Irc2Vk
                         var param = ex.ParamName;
                     }
                 }
-                await Task.Delay(new TimeSpan(1500));
+                await Task.Delay(new TimeSpan(1000));
             }
         }
 
@@ -165,15 +156,14 @@ namespace Irc2Vk
             _readThread.Start();
         }
 
-        private void SetNewMessages(IEnumerable<long> ids, IEnumerable<string> messages)
+        private void SetNewMessages(long id, IEnumerable<string> messages)
         {
-            var enumerable = ids as IList<long> ?? ids.ToList();
             var values = messages as IList<string> ?? messages.ToList();
-            if (!enumerable.Any() || !values.Any())
+            if (!values.Any())
                 return;
             NewMessages.Enqueue(new Message
             {
-                UserIds = new List<long>(enumerable),
+                UserId = id,
                 Attachments = new List<string>(),
                 Msg = string.Join("\n" ,values)
             });
