@@ -18,12 +18,6 @@ namespace Irc2Vk
 
         private ConcurrentQueue<Message> NewMessages { get; set; }
 
-        public event Action<long> RecivedMessageFromUid;
-        private void OnRecivedMessageFromUid(long uid)
-        {
-            RecivedMessageFromUid?.Invoke(uid);
-        }
-
         private async void ReadUserMessagesCycle()
         {
             while (!Stop)
@@ -58,7 +52,6 @@ namespace Irc2Vk
                             maxMessagesId = msg.Id.Value;
                             message.UserId = msg.UserId.Value;
                             message.Msg = msg.Body;
-                            //message.Attachments = new List<string>();
                             var attachments = new List<string>();
                             foreach (var at in msg?.Attachments)
                             {
@@ -110,13 +103,10 @@ namespace Irc2Vk
                     TryAccumulateMessages();
                     continue;
                 }
-                //Message msg;
                 var newMsgs = NewMessages.ToArray();
                 NewMessages = new ConcurrentQueue<Message>();
                 var sends = newMsgs.Select(x => $"API.messages.send({{ \"user_id\": {x.UserId},\"message\" : \"{x.Msg}\"}})");
                 var request = $"return [{string.Join(",", sends)}];";
-                //if (!NewMessages.TryDequeue(out msg) || msg.Msg==null ||msg.Msg.Length == 0)
-                //    continue;
                 var succeded = false;
                 while (!succeded)
                 {
@@ -126,11 +116,6 @@ namespace Irc2Vk
                         {
                             var diff = DateTime.Now - lastSend;
                             lastSend = DateTime.Now;
-                            //_api.Messages.Send(new VkNet.Model.RequestParams.MessagesSendParams
-                            //{
-                            //    Message = msg.Msg,
-                            //    UserId = msg.UserId
-                            //});
                             _api.Execute.Execute(request);
 
                         }
@@ -147,7 +132,7 @@ namespace Irc2Vk
                         var param = ex.ParamName;
                     }
                 }
-                await Task.Delay(TimeSpan.FromSeconds(1.5));
+                await Task.Delay(TimeSpan.FromSeconds(3.0));
             }
         }
 
@@ -166,7 +151,6 @@ namespace Irc2Vk
         {
             _api = api;
             _irc = irc;
-            _irc.MessagesHistoryUpdated += SetNewMessages;
             _readThread = new System.Threading.Thread(ReadUserMessagesCycle);
             _sendThread = new System.Threading.Thread(SendMessagesCycle);
             NewMessages = new ConcurrentQueue<Message>();
@@ -178,20 +162,7 @@ namespace Irc2Vk
             _sendThread.Start();
             _readThread.Start();
         }
-
-        private void SetNewMessages(long id, IEnumerable<string> messages)
-        {
-            var values = messages as IList<string> ?? messages.ToList();
-            if (!values.Any())
-                return;
-            NewMessages.Enqueue(new Message
-            {
-                UserId = id,
-                Attachments = new List<string>(),
-                Msg = string.Join("\n" ,values)
-            });
-        }
-
+        
         public void Dispose()
         {
             Stop = true;

@@ -1,18 +1,19 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using NetIrc2.Events;
+using IrcDotNet;
 
 namespace Irc2Vk
 {
-    class IrcBot
+    class IrcBot : IrcDotNet.StandardIrcClient
     {
         public enum State { Connected, Banned, Disconnected }
         public DateTime LastActivity { get; private set; }
-        private TimeSpan _maxAllowedInactiveInteral = new TimeSpan(1,0,0);
+        private TimeSpan _maxAllowedInactiveInteral = TimeSpan.FromHours(1);
 
         public event Action<IrcBot> ClientInactive;
         protected virtual void OnClientInactive(IrcBot obj)
@@ -35,23 +36,24 @@ namespace Irc2Vk
 
         private string Filter(string text)
         {
+            if (text == null) return "";
             var pattern = $"({char.ConvertFromUtf32(3)}[0-9]{{0,2}},?[0-9]{{0,2}})|{char.ConvertFromUtf32(15)}";
             return Regex.Replace(text, pattern, "");
         }
 
-        private void EnqueMessage(object sender, ChatMessageEventArgs e)
+        private void EnqueMessage(object sender, IrcRawMessageEventArgs e)
         {
             lock (_messages)
             {
-                if (e.Sender.Nickname != Nickname)
-                    _messages.Add($"{Filter(e.Sender.Nickname)}: {Filter(e.Message)}");
+                if (e.Message.Source == null) return;
+                if (e.Message.Source?.Name != Nickname && e.Message.Command.Equals("PRIVMSG"))
+                    _messages.Add($"{Filter(e.Message.Source?.Name)}: {Filter(e.Message.Parameters[1])}");
             }
 
             if (DateTime.Now - LastActivity > _maxAllowedInactiveInteral)
                 OnClientInactive(this);
         }
-
-        private NetIrc2.IrcClient _client;
+        
         private string _channel;
         private string _hostname;
         private int _port;
@@ -69,7 +71,6 @@ namespace Irc2Vk
             _messages = new List<string>();
             LastActivity = DateTime.Now;
 
-
         }
 
         public void Send(string msg)
@@ -78,32 +79,30 @@ namespace Irc2Vk
                 return;
 
             LastActivity = DateTime.Now;
-            _client.Message(_channel, msg);
+            SendMessagePrivateMessage(new List<string>() {_channel}, msg);
 
         } 
 
         public void Connect()
         {
-            _client = new NetIrc2.IrcClient();
-            _client.Connect(_hostname, _port);
             if (Nickname == null)
                 return;
-            _client.LogIn(Nickname, Nickname, Nickname);
-            _client.GotMessage += EnqueMessage;
-            CurrentState = State.Connected;
+            Connect(new DnsEndPoint(_hostname, _port), false, new IrcUserRegistrationInfo() {NickName = Nickname, UserName = Nickname, RealName = Nickname});
+            RawMessageReceived += EnqueMessage;
+            Registered += (sender, args) => CurrentState = State.Connected;
+            Disconnected += OnDisconnected;
+            Channels.Join(new List<string>() { _channel });
+
         }
 
-        public void Disconnect()
+        private void OnDisconnected(object sender, EventArgs eventArgs)
         {
-            _client.LogOut("Bye");
-            _client.GotMessage -= EnqueMessage;
+            RawMessageReceived -= EnqueMessage;
             CurrentState = State.Disconnected;
             lock (_messages)
             {
                 _messages.Clear();
             }
         }
-
-
     }
 }

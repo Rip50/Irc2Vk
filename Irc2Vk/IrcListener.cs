@@ -5,7 +5,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
-using NetIrc2;
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 
@@ -28,7 +27,7 @@ namespace Irc2Vk
     {
         public long Uid;
         public string Nickname;
-        public DateTime LastActivity;
+        public DateTime? LastActivity;
     }
 
     [Serializable]
@@ -40,11 +39,7 @@ namespace Irc2Vk
     //Класс, осуществляющий управление ботами
     class IrcListener : IDisposable
     {
-        private readonly System.Timers.Timer _updateTimer;
-        
         public IrcConfig Config { get; set; }
-
-        public event Action<long, IEnumerable<string>> MessagesHistoryUpdated;
         
         private List<Message> MessagesHistory { get; set; }
         private ConcurrentDictionary<long, IrcBot> Bots { get; set; }
@@ -54,19 +49,12 @@ namespace Irc2Vk
         {
             UserBanned?.Invoke(uid);
         }
-
-        private void OnMessagesHistoryUpdated(long uid, IEnumerable<string> msgs  )
-        {
-            MessagesHistoryUpdated?.Invoke(uid, msgs);
-        }
-
+        
         public IrcListener(IrcConfig config, ClientsConfig? knownClients = null)
         {
             Config = config;
             Bots = new ConcurrentDictionary<long, IrcBot>();
             MessagesHistory = new List<Message>();
-            _updateTimer = new System.Timers.Timer(Config.UpdateMsPeriod);
-            _updateTimer.Elapsed += Update;
 
             if (knownClients?.Clients == null) return;
             foreach (var client in knownClients?.Clients)
@@ -82,17 +70,6 @@ namespace Irc2Vk
 
         public void Start()
         {
-            //_updateTimer.Start();
-        }
-
-        private void Update(object sender, ElapsedEventArgs e)
-        {
-            foreach (var bot in Bots.Where(kv => kv.Value.CurrentState == IrcBot.State.Connected))
-            {
-                var msgs = bot.Value.GetMessages();
-                if(msgs.Length!=0)
-                    OnMessagesHistoryUpdated(bot.Key, new List<string>() {msgs} );
-            }
         }
         
 
